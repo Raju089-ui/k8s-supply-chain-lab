@@ -1,0 +1,55 @@
+name: supply-chain
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chain:
+    name: build → scan → sign → verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # keyless signing via OIDC
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: |
+          docker build --build-arg APP_VERSION="${GITHUB_SHA::7}" \
+            -t supply-chain-demo:ci .
+
+      - name: Trivy scan (gate)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: supply-chain-demo:ci
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: table
+
+      - name: Generate SBOM
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: supply-chain-demo:ci
+          scan-type: image
+          format: cyclonedx
+          output: sbom.cdx.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.cdx.json
+
+      - name: Validate Kyverno policies
+        run: |
+          curl -sSL -o kyverno.tar.gz \
+            https://github.com/kyverno/kyverno/releases/download/v1.13.2/kyverno-cli_v1.13.2_linux_x86_64.tar.gz
+          tar -xzf kyverno.tar.gz kyverno
+          ./kyverno apply policies/ --resource manifests/deployment.yaml --detailed-results

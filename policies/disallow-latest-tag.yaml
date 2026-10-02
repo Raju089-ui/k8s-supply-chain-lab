@@ -1,0 +1,39 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-latest-tag
+  annotations:
+    policies.kyverno.io/title: Disallow :latest and untagged images
+    policies.kyverno.io/category: Supply Chain Security
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/description: >-
+      A floating tag means the image running tomorrow is not the image that
+      was scanned and signed today. Pin to an immutable tag or a digest.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: require-explicit-tag
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: "Image must carry an explicit tag (not :latest, not untagged)."
+        pattern:
+          spec:
+            containers:
+              - image: "!*:latest"
+    - name: require-tag-present
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: "Image reference must include a tag or digest."
+        pattern:
+          spec:
+            containers:
+              - image: "*:*"

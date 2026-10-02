@@ -1,0 +1,15 @@
+# cosign keys — never commit these
+cosign.key
+cosign.pub
+*.pem
+
+# generated artifacts
+sbom.cdx.json
+trivy-report.txt
+image-digest.txt
+*.rendered.yaml
+
+# local
+.DS_Store
+kubeconfig
+.env
